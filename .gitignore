@@ -1,0 +1,50 @@
+# ───────────────
+# Node.js dependencies
+# ───────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ───────────────
+# Environment files
+# ───────────────
+.env
+.env.*
+!.env.example  # allow an example env file for reference
+
+# ───────────────
+# Build / Output
+# ───────────────
+dist/
+build/
+coverage/
+logs/
+*.log
+
+# ───────────────
+# Temporary files
+# ───────────────
+.tmp/
+temp/
+.cache/
+
+# ───────────────
+# System files
+# ───────────────
+.DS_Store
+Thumbs.db
+
+# ───────────────
+# IDE / Editor settings
+# ───────────────
+.vscode/
+.idea/
+*.swp
+
+# ───────────────
+# Uploads / Generated content
+# ───────────────
+uploads/
+public/uploads/
