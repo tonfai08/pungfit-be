@@ -34,11 +34,22 @@ exports.login = async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
   const token = sign({ sub: user._id.toString(), email: user.email });
+
   return res.json({
     token,
-    user: { id: user._id, email: user.email, display_name: user.display_name }
+    user: {
+      id: user._id,
+      email: user.email,
+      display_name: user.display_name,
+      height_cm: user.height_cm,
+      weight_kg: user.weight_kg,
+      body_fat_percent: user.body_fat_percent,
+      gender: user.gender,
+      age: user.age
+    }
   });
 };
+
 
 exports.me = async (req, res) => {
   const user = await User.findById(req.user.id).select('_id email display_name');

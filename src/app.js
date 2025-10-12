@@ -18,8 +18,15 @@ app.get('/', (req, res) => {
 // routes ตัวอย่าง
 const authRoutes = require('./routes/auth.routes');
 const mealRoutes = require('./routes/meals.routes');
+const userRoutes = require('./routes/user');
+const weightRoutes = require('./routes/weight.routes');
+const groupRoutes = require('./routes/group.routes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/meals', mealRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/weight', weightRoutes);
+app.use('/api/groups', groupRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
