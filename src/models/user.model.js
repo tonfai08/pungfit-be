@@ -1,46 +1,30 @@
 ﻿const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    unique: true,
-    index: true,
-    required: true,
-    lowercase: true,
-    trim: true,
-  },
-  password_hash: {
-    type: String,
-    required: true,
-  },
-  display_name: {
-    type: String,
-    index: true,
-    maxlength: 15, // ✅ จำกัดชื่อไม่เกิน 15 ตัวอักษร
-    trim: true,
-  },
-
-  height_cm: {
-    type: Number,
-    min: 90,   // ✅ ต่ำสุด 90 cm
-    max: 230,  // ✅ สูงสุด 230 cm
-  },
-  weight_kg: {
-    type: Number,
-    min: 20,   // ✅ ต่ำสุด 20 kg
-    max: 200,  // ✅ สูงสุด 200 kg
-  },
+  email: { type: String, unique: true, required: true, lowercase: true, trim: true },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
+  password_hash: { type: String },
+  google_id: { type: String, unique: true, sparse: true, trim: true },
+  display_name: { type: String, maxlength: 15, trim: true },
+  height_cm: { type: Number, min: 90, max: 230 },
+  weight_kg: { type: Number, min: 20, max: 200 },
   body_fat_percent: Number,
-
-  age: {
-    type: Number,
-    min: 0,
-    max: 120,
-  },
+  age: { type: Number, min: 0, max: 120 },
   dob: Date,
-  gender: {
+  gender: { type: String, enum: ['male', 'female', 'other'] },
+  activity_level: {
     type: String,
-    enum: ['male', 'female', 'other'],
+    enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'],
+    default: 'sedentary',
+  },
+
+  bmr: { type: Number, default: null },
+  // ✅ เก็บทั้งพลังงานรวมและสัดส่วนสารอาหาร
+  tdee: {
+    calories: { type: Number, default: null },
+    protein: { type: Number, default: null },
+    fat: { type: Number, default: null },
+    carbs: { type: Number, default: null },
   },
 
   units: {
@@ -56,6 +40,10 @@ const UserSchema = new mongoose.Schema({
       default: 'groups',
     },
   },
+
+  profile_image: { type: String, default: '', trim: true },
+  last_login: { type: Date, default: null },
 }, { timestamps: true });
+
 
 module.exports = mongoose.model('User', UserSchema);

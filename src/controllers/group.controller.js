@@ -103,8 +103,10 @@ exports.getGroupDetail = async (req, res) => {
     const { groupId } = req.params;
     const userId = req.user.id;
 
-    // 1️⃣ หา group
-    const group = await Group.findById(groupId).populate('members', 'display_name weight_kg height_cm');
+    // 1️⃣ หา group พร้อม populate เพิ่ม profile_image และ last_login
+    const group = await Group.findById(groupId)
+      .populate('members', 'display_name profile_image last_login');
+
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
@@ -115,12 +117,12 @@ exports.getGroupDetail = async (req, res) => {
       return res.status(403).json({ message: 'You are not a member of this group' });
     }
 
-    // 3️⃣ ส่งเฉพาะข้อมูลที่ต้องการ
+    // 3️⃣ ส่งเฉพาะข้อมูลที่ต้องการ (ไม่รวม height_cm / weight_kg)
     const memberData = group.members.map((m) => ({
       id: m._id,
       name: m.display_name || 'Unknown',
-      height_cm: m.height_cm,
-      weight_kg: m.weight_kg,
+      profile_image: m.profile_image || null,
+      last_login: m.last_login || null,
     }));
 
     res.json({
@@ -133,6 +135,9 @@ exports.getGroupDetail = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Failed to fetch group detail', error: err.message });
+    res.status(500).json({
+      message: 'Failed to fetch group detail',
+      error: err.message,
+    });
   }
 };

@@ -7,7 +7,7 @@ module.exports = (req, res, next) => {
 
   try {
     const payload = verify(token);
-    req.user = { id: payload.sub, email: payload.email };
+    req.user = { id: payload.sub, email: payload.email, role: payload.role || 'user' };
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
