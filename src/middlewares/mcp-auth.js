@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const User = require('../models/user.model');
+const { verify } = require('../utils/jwt');
 
 module.exports = async (req, res, next) => {
   const authorization = req.headers.authorization || '';
@@ -8,12 +9,19 @@ module.exports = async (req, res, next) => {
     : null;
 
   if (!token) {
+    const metadata = `${process.env.PUBLIC_API_ORIGIN || 'https://api.pungfit.life'}/.well-known/oauth-protected-resource`;
+    res.set('WWW-Authenticate', `Bearer resource_metadata="${metadata}"`);
     return res.status(401).json({ error: 'MCP bearer token is required' });
   }
 
   try {
     if (!token.startsWith('pungfit_pat_')) {
-      return res.status(403).json({ error: 'A dedicated MCP access key is required' });
+      const payload = verify(token);
+      if (payload.token_use !== 'mcp' || payload.resource !== `${process.env.PUBLIC_API_ORIGIN || 'https://api.pungfit.life'}/mcp`) {
+        return res.status(403).json({ error: 'A dedicated MCP token is required' });
+      }
+      req.user = { id: payload.sub, email: payload.email, role: payload.role || 'user', scopes: payload.scopes || [] };
+      return next();
     }
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await User.findOne({ mcp_access_key_hash: tokenHash });
@@ -27,6 +35,8 @@ module.exports = async (req, res, next) => {
     };
     return next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid MCP access key' });
+    const metadata = `${process.env.PUBLIC_API_ORIGIN || 'https://api.pungfit.life'}/.well-known/oauth-protected-resource`;
+    res.set('WWW-Authenticate', `Bearer resource_metadata="${metadata}"`);
+    return res.status(401).json({ error: 'Invalid MCP access token' });
   }
 };

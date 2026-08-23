@@ -7,6 +7,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(cors());
 app.use(morgan('dev'));
 
@@ -29,6 +30,12 @@ const exerciseLogRoutes = require('./routes/exercise-log.routes');
 const werewolfRoutes = require('./routes/werewolf.routes');
 const waterIntakeRoutes = require('./routes/water-intake.routes');
 const mcpRoutes = require('./routes/mcp.routes');
+const oauthRoutes = require('./routes/oauth.routes');
+
+const oauthController = require('./controllers/oauth.controller');
+app.get('/.well-known/oauth-protected-resource', oauthController.protectedResource);
+app.get('/.well-known/oauth-protected-resource/mcp', oauthController.protectedResource);
+app.get('/.well-known/oauth-authorization-server', oauthController.authorizationServer);
 
 app.use(cors());
 app.use('/v1/auth', authRoutes);
@@ -43,6 +50,7 @@ app.use('/v1/exercise-logs', exerciseLogRoutes);
 app.use('/v1/werewolf', werewolfRoutes);
 app.use('/v1/water-intakes', waterIntakeRoutes);
 app.use('/mcp', mcpRoutes);
+app.use('/oauth', oauthRoutes);
 app.use('/v1/uploads', express.static('uploads'));
 
 const PORT = process.env.PORT || 5000;
