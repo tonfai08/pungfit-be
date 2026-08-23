@@ -5,6 +5,7 @@ require('dotenv').config();
 const { connectDB } = require('./config/db');
 const app = express();
 
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cors());
 app.use(morgan('dev'));
@@ -27,6 +28,7 @@ const workoutPlanRoutes = require('./routes/user-workout-plan.routes');
 const exerciseLogRoutes = require('./routes/exercise-log.routes');
 const werewolfRoutes = require('./routes/werewolf.routes');
 const waterIntakeRoutes = require('./routes/water-intake.routes');
+const mcpRoutes = require('./routes/mcp.routes');
 
 app.use(cors());
 app.use('/v1/auth', authRoutes);
@@ -40,6 +42,7 @@ app.use('/v1/workout-plans', workoutPlanRoutes);
 app.use('/v1/exercise-logs', exerciseLogRoutes);
 app.use('/v1/werewolf', werewolfRoutes);
 app.use('/v1/water-intakes', waterIntakeRoutes);
+app.use('/mcp', mcpRoutes);
 app.use('/v1/uploads', express.static('uploads'));
 
 const PORT = process.env.PORT || 5000;

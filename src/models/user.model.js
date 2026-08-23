@@ -5,6 +5,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   password_hash: { type: String },
   google_id: { type: String, unique: true, sparse: true, trim: true },
+  mcp_access_key_hash: { type: String, select: false, index: true },
   display_name: { type: String, maxlength: 15, trim: true },
   height_cm: { type: Number, min: 90, max: 230 },
   weight_kg: { type: Number, min: 20, max: 200 },

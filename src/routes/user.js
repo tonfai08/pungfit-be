@@ -6,6 +6,10 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const { updateUser, getMe } = require('../controllers/user.controller');
+const {
+  createMcpAccessKey,
+  disableMcpAccess,
+} = require('../controllers/mcp-auth.controller');
 const User = require('../models/user.model');
 
 // ✅ multer memory storage (ไม่เขียนไฟล์ตรง)
@@ -25,6 +29,8 @@ const upload = multer({
 // ✅ PUT /me
 router.put('/me', auth, updateUser);
 router.get('/me', auth, getMe);
+router.post('/me/mcp-access-key', auth, createMcpAccessKey);
+router.delete('/me/mcp-access-key', auth, disableMcpAccess);
 
 // ✅ POST /me/profile-image (resize ก่อนเซฟ)
 router.post('/me/profile-image', auth, upload.single('image'), async (req, res) => {

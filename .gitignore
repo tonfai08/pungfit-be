@@ -12,7 +12,8 @@ pnpm-debug.log*
 # ───────────────
 .env
 .env.*
-!.env.example  # allow an example env file for reference
+# Allow a safe template while keeping real environment files private.
+!.env.example
 
 # ───────────────
 # Build / Output

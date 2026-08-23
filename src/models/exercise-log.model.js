@@ -22,10 +22,19 @@ const ExerciseLogSchema = new mongoose.Schema(
     intensity: { type: String, enum: ['low', 'moderate', 'high'] },
     notes: { type: String, trim: true },
     performed_at: { type: Date, required: true },
+    source: { type: String, enum: ['app', 'mcp'], default: 'app' },
+    client_request_id: { type: String, trim: true },
   },
   { timestamps: true }
 );
 
 ExerciseLogSchema.index({ userId: 1, performed_at: -1 });
+ExerciseLogSchema.index(
+  { userId: 1, client_request_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { client_request_id: { $type: 'string' } },
+  }
+);
 
 module.exports = mongoose.model('ExerciseLog', ExerciseLogSchema);

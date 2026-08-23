@@ -7,6 +7,9 @@ module.exports = (req, res, next) => {
 
   try {
     const payload = verify(token);
+    if (payload.token_use === 'mcp') {
+      return res.status(403).json({ error: 'MCP token cannot access user API routes' });
+    }
     req.user = { id: payload.sub, email: payload.email, role: payload.role || 'user' };
     next();
   } catch (e) {

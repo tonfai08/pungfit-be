@@ -50,7 +50,10 @@ exports.updateUser = async (req, res) => {
     delete updates.id;
     delete updates.email;
     delete updates.password;
+    delete updates.password_hash;
     delete updates.role;
+    delete updates.google_id;
+    delete updates.mcp_access_key_hash;
 
     const user = await User.findByIdAndUpdate(id, updates, {
       new: true,
@@ -111,7 +114,7 @@ exports.updateUser = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const { id } = req.user; // มาจาก middleware auth
-    const user = await User.findById(id).select('-password_hash'); // ไม่ส่ง password ออกไป
+    const user = await User.findById(id).select('+mcp_access_key_hash');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -135,7 +138,8 @@ exports.getMe = async (req, res) => {
       units: user.units,
       privacy: user.privacy,
       profile_image: user.profile_image,
-      last_login: user.last_login
+      last_login: user.last_login,
+      mcp_enabled: Boolean(user.mcp_access_key_hash)
     });
   } catch (err) {
     console.error(err);
