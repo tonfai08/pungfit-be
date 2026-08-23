@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs/promises');
 const auth = require('../middlewares/auth');
 const BodyProgress = require('../models/body-progress.model');
+const User = require('../models/user.model');
 
 const router = express.Router();
 const upload = multer({
@@ -27,13 +28,16 @@ router.get('/', auth, async (req, res) => {
   const limit = allowed.includes(requested) ? requested : 10;
   const records = await BodyProgress.find({ userId: req.user.id })
     .sort({ date_key: -1 }).limit(limit);
-  res.json({ records, limit, today: todayKey(), can_select_date: req.user.role === 'admin' });
+  const user = await User.findById(req.user.id).select('role').lean();
+  res.json({ records, limit, today: todayKey(), can_select_date: user?.role === 'admin' });
 });
 
 router.post('/', auth, upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Image is required (JPEG, PNG or WebP, max 10MB)' });
+  const user = await User.findById(req.user.id).select('role').lean();
+  const isAdmin = user?.role === 'admin';
   const requestedDate = typeof req.body.date_key === 'string' ? req.body.date_key : '';
-  const dateKey = req.user.role === 'admin' && datePattern.test(requestedDate)
+  const dateKey = isAdmin && datePattern.test(requestedDate)
     ? requestedDate
     : todayKey();
   if (dateKey > todayKey()) return res.status(400).json({ error: 'Future dates are not allowed' });
