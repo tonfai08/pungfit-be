@@ -15,6 +15,12 @@ async function connectDB() {
         upsert: true,
       },
     })));
+    try {
+      const { syncWgerMedia } = require('../services/wger-media-sync.service');
+      await syncWgerMedia();
+    } catch (mediaError) {
+      console.warn(' wger media sync skipped:', mediaError.message);
+    }
     console.log(' MongoDB Connected');
   } catch (err) {
     console.error(' MongoDB connection failed:', err.message);

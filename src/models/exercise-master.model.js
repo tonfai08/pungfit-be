@@ -69,6 +69,11 @@ const ExerciseMasterSchema = new mongoose.Schema(
     media: {
       video_url: { type: String, trim: true },
       image_url: { type: String, trim: true },
+      source: { type: String, trim: true },
+      source_url: { type: String, trim: true },
+      license: { type: String, trim: true },
+      license_url: { type: String, trim: true },
+      attribution: { type: String, trim: true },
     },
 
     metrics_supported: {
