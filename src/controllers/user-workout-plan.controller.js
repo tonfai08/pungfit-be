@@ -1,5 +1,6 @@
 const UserWorkoutPlan = require('../models/user-workout-plan.model');
 const ExerciseMaster = require('../models/exercise-master.model');
+const User = require('../models/user.model');
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -12,6 +13,30 @@ exports.generateWorkoutPlanWithAI = async (req, res) => {
     if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY is not configured' });
     const exercises = await ExerciseMaster.find({ is_archived: false }).select('_id name difficulty equipment movement_pattern').lean();
     if (!exercises.length) return res.status(503).json({ error: 'ยังไม่มีท่าออกกำลังกายในระบบ' });
+    const currentPlan = await UserWorkoutPlan.findOne({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('days.mon.exerciseId', 'name')
+      .populate('days.tue.exerciseId', 'name')
+      .populate('days.wed.exerciseId', 'name')
+      .populate('days.thu.exerciseId', 'name')
+      .populate('days.fri.exerciseId', 'name')
+      .populate('days.sat.exerciseId', 'name')
+      .populate('days.sun.exerciseId', 'name')
+      .lean();
+    const profile = await User.findById(req.user.id)
+      .select('weight_kg height_cm body_fat_percent')
+      .lean();
+    const bodyProfile = {
+      weight_kg: profile?.weight_kg ?? null,
+      height_cm: profile?.height_cm ?? null,
+      body_fat_percent: profile?.body_fat_percent ?? null,
+    };
+    const currentPlanSummary = currentPlan
+      ? Object.fromEntries(DAY_KEYS.map((day) => [day, (currentPlan.days?.[day] || []).map((item) => ({
+        exercise: item.exerciseId?.name || 'unknown', type: item.type, sets: item.sets,
+        reps: item.reps, time_min: item.time_min, notes: item.notes,
+      }))]))
+      : null;
     const itemSchema = {
       type: 'object', additionalProperties: false,
       properties: {
@@ -28,7 +53,14 @@ exports.generateWorkoutPlanWithAI = async (req, res) => {
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4.1-mini', store: false, max_output_tokens: 3000,
-        input: [{ role: 'user', content: [{ type: 'input_text', text: `Create a safe one-week workout plan in Thai using only the supplied exercise names. Respect rest days, experience, equipment, limitations, and goals. User request: ${prompt}` }] }],
+        input: [{ role: 'user', content: [{ type: 'input_text', text: [
+          'Create a safe one-week workout plan in Thai using only exercise names allowed by the schema.',
+          'Respect rest days, experience, equipment, limitations, and goals.',
+          'Analyze the current plan when provided: preserve useful parts, improve balance and recovery, and avoid abrupt unsafe increases in volume.',
+          `User request: ${prompt}`,
+          `Body profile: ${JSON.stringify(bodyProfile)}`,
+          `Current workout plan: ${currentPlanSummary ? JSON.stringify(currentPlanSummary) : 'No existing plan'}`,
+        ].join('\n') }] }],
         text: { format: { type: 'json_schema', name: 'weekly_workout_plan', strict: true, schema: {
           type: 'object', additionalProperties: false,
           properties: { days: { type: 'object', additionalProperties: false, properties: daysProperties, required: DAY_KEYS }, note: { type: 'string' } },
@@ -46,7 +78,7 @@ exports.generateWorkoutPlanWithAI = async (req, res) => {
       ...(item.sets ? { sets: item.sets } : {}), ...(item.reps ? { reps: item.reps } : {}),
       ...(item.time_min ? { time_min: item.time_min } : {}), notes: item.notes,
     }))]));
-    return res.json({ plan: { weekLabel: `AI-${Date.now()}`, days, note: generated.note, is_active: true } });
+    return res.json({ plan: { weekLabel: `AI-${Date.now()}`, days, note: generated.note, is_active: true }, analyzed_existing_plan: Boolean(currentPlan) });
   } catch (err) {
     console.error('AI workout plan error:', err);
     return res.status(500).json({ error: 'สร้างตารางด้วย AI ไม่สำเร็จ' });
