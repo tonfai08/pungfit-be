@@ -177,6 +177,39 @@ const requestMealAnalysis = async (imageDataUrl, lang = 'th') => {
   return normalizeAnalyzedMeal(parseJsonText(extractResponseText(data)));
 };
 
+const requestMealTextAnalysis = async (description, lang = 'th') => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const error = new Error('OPENAI_API_KEY is not configured');
+    error.statusCode = 503;
+    throw error;
+  }
+  const outputLanguage = lang === 'en' ? 'English' : 'Thai';
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: [
+        'Estimate nutrition for the food and serving amount described below.',
+        `Food description: ${description}`,
+        `Use ${outputLanguage} for food_name, description, and notes.`,
+        'Return only JSON matching the schema. Use grams for protein/fat/carbs/sugar/fiber, mg for sodium/cholesterol/calcium/iron/potassium/vitaminC, and IU for vitaminD.',
+      ].join(' ') }] }],
+      text: { format: { type: 'json_schema', name: 'meal_nutrition_estimate', schema: NUTRITION_SCHEMA, strict: true } },
+      max_output_tokens: 800,
+      store: false,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error?.message || 'OpenAI request failed');
+    error.statusCode = response.status;
+    throw error;
+  }
+  return normalizeAnalyzedMeal(parseJsonText(extractResponseText(data)));
+};
+
 exports.createMealRecord = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -325,6 +358,22 @@ exports.analyzeMealImage = async (req, res) => {
     res.status(err.statusCode || 500).json({
       error: err.statusCode === 503 ? err.message : 'Failed to analyze meal image',
       detail: process.env.NODE_ENV === 'production' ? undefined : err.message,
+    });
+  }
+};
+
+exports.analyzeMealText = async (req, res) => {
+  try {
+    const description = String(req.body?.description || '').trim();
+    if (description.length < 3 || description.length > 2000) {
+      return res.status(400).json({ error: 'description must be between 3 and 2000 characters' });
+    }
+    const meal = await requestMealTextAnalysis(description, normalizeLang(req.body?.lang));
+    return res.json({ success: true, meal });
+  } catch (err) {
+    console.error('Error analyzing meal text:', err);
+    return res.status(err.statusCode === 503 ? 503 : 502).json({
+      error: err.statusCode === 503 ? err.message : 'Failed to analyze meal text',
     });
   }
 };

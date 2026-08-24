@@ -7,6 +7,7 @@ const {
   createMealRecord,
   getMealsByDate,
   analyzeMealImage,
+  analyzeMealText,
   deleteMeal,
 } = require('../controllers/meals.controller');
 
@@ -38,6 +39,7 @@ const uploadImage = (req, res, next) => {
 router.use(auth);
 
 router.post('/analyze-image', uploadImage, analyzeMealImage);
+router.post('/analyze-text', analyzeMealText);
 router.post('/', createMealRecord);
 router.get('/', getMealsByDate);
 router.delete('/:id', deleteMeal);
