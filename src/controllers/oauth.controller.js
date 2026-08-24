@@ -13,7 +13,7 @@ const base64url = (value) => value.toString('base64url');
 exports.protectedResource = (req, res) => res.json({
   resource: resourceId(),
   authorization_servers: [apiOrigin()],
-  scopes_supported: ['workout:read', 'workout:write'],
+  scopes_supported: ['workout:read', 'workout:write', 'meal:read', 'meal:write'],
   resource_documentation: `${apiOrigin()}/docs/mcp`,
 });
 
@@ -26,7 +26,7 @@ exports.authorizationServer = (req, res) => res.json({
   grant_types_supported: ['authorization_code'],
   code_challenge_methods_supported: ['S256'],
   token_endpoint_auth_methods_supported: ['none'],
-  scopes_supported: ['workout:read', 'workout:write'],
+  scopes_supported: ['workout:read', 'workout:write', 'meal:read', 'meal:write'],
 });
 
 exports.register = async (req, res) => {
@@ -78,7 +78,7 @@ exports.approve = async (req, res) => {
     await validateAuthorization(values);
     const user = await User.findById(req.user.id);
     if (!user) return res.status(401).json({ error: 'invalid_user' });
-    const scope = 'workout:read workout:write';
+    const scope = 'workout:read workout:write meal:read meal:write';
     const code = `pungfit_code_${crypto.randomBytes(32).toString('base64url')}`;
     await OAuthCode.create({
       code_hash: base64url(sha256(code)),

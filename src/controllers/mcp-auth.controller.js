@@ -15,7 +15,7 @@ exports.createMcpAccessKey = async (req, res) => {
       success: true,
       access_key: accessKey,
       token_type: 'Bearer',
-      scopes: ['workout:read', 'workout:write'],
+      scopes: ['workout:read', 'workout:write', 'meal:read', 'meal:write'],
       message: 'Access key created. Copy it now; it will not be shown again.',
     });
   } catch (error) {

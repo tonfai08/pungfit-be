@@ -56,8 +56,12 @@ const MealSchema = new mongoose.Schema({
   vitaminC: { type: Number, default: 0 },    // วิตามินซี (mg)
   vitaminD: { type: Number, default: 0 },    // วิตามินดี (IU)
 
+  source: { type: String, enum: ['app', 'mcp'], default: 'app' },
+  client_request_id: { type: String, sparse: true, index: true },
+
 }, { timestamps: true });
 
 MealSchema.index({ userId: 1, date: 1, meal_type: 1 });
+MealSchema.index({ userId: 1, client_request_id: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Meal', MealSchema);

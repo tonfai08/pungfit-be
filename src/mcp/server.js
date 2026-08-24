@@ -6,6 +6,7 @@ const { StreamableHTTPServerTransport } = require(
 const { z } = require('zod');
 const ExerciseLog = require('../models/exercise-log.model');
 const exerciseLogService = require('../services/exercise-log.service');
+const Meal = require('../models/meal.model');
 
 const setSchema = z.object({
   weight_kg: z.number().min(0).max(1000).optional(),
@@ -21,9 +22,34 @@ const exerciseSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 
+const nutritionNumber = z.number().min(0).max(100000).optional();
+const mealSchema = z.object({
+  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  food_name: z.string().trim().min(1).max(250),
+  description: z.string().trim().max(1000).optional(),
+  sequence: z.number().int().min(1).max(20).optional(),
+  calories: nutritionNumber,
+  protein: nutritionNumber,
+  fat: nutritionNumber,
+  carbs: nutritionNumber,
+  sugar: nutritionNumber,
+  fiber: nutritionNumber,
+  sodium: nutritionNumber,
+});
+
 const requireScope = (user, scope) => {
   if (!user.scopes.includes(scope)) {
     const error = new Error(`Missing required scope: ${scope}`);
+    error.code = 'MISSING_SCOPE';
+    throw error;
+  }
+};
+
+const requireMealScope = (user, access) => {
+  const mealScope = `meal:${access}`;
+  const legacyScope = `workout:${access}`;
+  if (!user.scopes.includes(mealScope) && !user.scopes.includes(legacyScope)) {
+    const error = new Error(`Missing required scope: ${mealScope}`);
     error.code = 'MISSING_SCOPE';
     throw error;
   }
@@ -173,6 +199,68 @@ const createPungfitMcpServer = (user) => {
       } catch (error) {
         console.error('MCP get_today_workouts error:', error);
         return errorResult(error.message || 'Unable to get workouts');
+      }
+    }
+  );
+
+  server.registerTool(
+    'record_meals',
+    {
+      description:
+        'Record one or more meals for the authenticated PungFit user. Use the nutrition values supplied or explicitly estimated in the conversation; do not invent missing nutrition values. Meal types are breakfast, lunch, dinner, or snack.',
+      inputSchema: {
+        date: z.string().describe('Meal calendar date in YYYY-MM-DD format'),
+        meals: z.array(mealSchema).min(1).max(20),
+        client_request_id: z.string().trim().min(8).max(120).optional()
+          .describe('Stable unique ID used to prevent duplicate recording'),
+      },
+    },
+    async ({ date, meals, client_request_id }) => {
+      try {
+        requireMealScope(user, 'write');
+        getDateRange(date, 420);
+        const requestId = client_request_id || randomUUID();
+        const recorded = [];
+        for (let index = 0; index < meals.length; index += 1) {
+          const itemRequestId = `${requestId}:${index}`;
+          const existing = await Meal.findOne({ userId: user.id, client_request_id: itemRequestId });
+          if (existing) { recorded.push(existing); continue; }
+          recorded.push(await Meal.create({
+            userId: user.id,
+            date: new Date(`${date}T00:00:00.000Z`),
+            ...meals[index],
+            source: 'mcp',
+            client_request_id: itemRequestId,
+          }));
+        }
+        return jsonResult({ success: true, date, duplicate_safe_request_id: requestId, recorded_count: recorded.length, meals: recorded });
+      } catch (error) {
+        console.error('MCP record_meals error:', error);
+        return errorResult(error.message || 'Unable to record meals');
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_meals_by_date',
+    {
+      description: 'Get meals and nutrition totals for a calendar date for the authenticated PungFit user.',
+      inputSchema: { date: z.string().describe('Calendar date in YYYY-MM-DD format') },
+    },
+    async ({ date }) => {
+      try {
+        requireMealScope(user, 'read');
+        const { start, end } = getDateRange(date, 0);
+        const meals = await Meal.find({ userId: user.id, date: { $gte: start, $lte: end } })
+          .sort({ meal_type: 1, sequence: 1 });
+        const totals = meals.reduce((sum, meal) => {
+          ['calories', 'protein', 'fat', 'carbs', 'sugar', 'fiber', 'sodium'].forEach((key) => { sum[key] += meal[key] || 0; });
+          return sum;
+        }, { calories: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, fiber: 0, sodium: 0 });
+        return jsonResult({ success: true, date, count: meals.length, totals, meals });
+      } catch (error) {
+        console.error('MCP get_meals_by_date error:', error);
+        return errorResult(error.message || 'Unable to get meals');
       }
     }
   );

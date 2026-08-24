@@ -31,7 +31,7 @@ module.exports = async (req, res, next) => {
       id: user._id.toString(),
       email: user.email,
       role: user.role || 'user',
-      scopes: ['workout:read', 'workout:write'],
+      scopes: ['workout:read', 'workout:write', 'meal:read', 'meal:write'],
     };
     return next();
   } catch (error) {
