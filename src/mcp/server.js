@@ -97,8 +97,8 @@ const errorResult = (message) => ({
   content: [{ type: 'text', text: message }],
 });
 
-const createPungfitMcpServer = (user) => {
-  const server = new McpServer({ name: 'pungfit', version: '1.1.0' });
+const createPungfitMcpServer = (user, serverName = 'pungfit') => {
+  const server = new McpServer({ name: serverName, version: '1.1.0' });
 
   server.registerTool(
     'record_workout',
@@ -269,7 +269,8 @@ const createPungfitMcpServer = (user) => {
 };
 
 const handleMcpRequest = async (req, res) => {
-  const server = createPungfitMcpServer(req.user);
+  const serverName = req.baseUrl === '/mcp-v2' ? 'pungfit-v2' : 'pungfit';
+  const server = createPungfitMcpServer(req.user, serverName);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
