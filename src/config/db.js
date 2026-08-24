@@ -6,6 +6,15 @@ async function connectDB() {
       dbName: 'fitness_db',
       autoIndex: true,
     });
+    const ExerciseMaster = require('../models/exercise-master.model');
+    const defaults = require('../data/default-exercises');
+    await ExerciseMaster.bulkWrite(defaults.map((exercise) => ({
+      updateOne: {
+        filter: { name: exercise.name, language: exercise.language },
+        update: { $setOnInsert: exercise },
+        upsert: true,
+      },
+    })));
     console.log(' MongoDB Connected');
   } catch (err) {
     console.error(' MongoDB connection failed:', err.message);
