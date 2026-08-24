@@ -6,12 +6,13 @@ const { sign } = require('../utils/jwt');
 
 const apiOrigin = () => process.env.PUBLIC_API_ORIGIN || 'https://api.pungfit.life';
 const webOrigin = () => process.env.PUBLIC_WEB_ORIGIN || 'https://pungfit.life';
-const resourceId = () => `${apiOrigin()}/mcp`;
+const resourceId = (version = '') => `${apiOrigin()}/mcp${version}`;
+const allowedResources = () => [resourceId(), resourceId('-v2')];
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
 const base64url = (value) => value.toString('base64url');
 
 exports.protectedResource = (req, res) => res.json({
-  resource: resourceId(),
+  resource: req.originalUrl.includes('mcp-v2') ? resourceId('-v2') : resourceId(),
   authorization_servers: [apiOrigin()],
   scopes_supported: ['workout:read', 'workout:write', 'meal:read', 'meal:write'],
   resource_documentation: `${apiOrigin()}/docs/mcp`,
@@ -58,7 +59,7 @@ const validateAuthorization = async (query) => {
   if (response_type !== 'code' || code_challenge_method !== 'S256' || !code_challenge) {
     throw new Error('invalid_request');
   }
-  if (resource !== resourceId()) throw new Error('invalid_target');
+  if (!allowedResources().includes(resource)) throw new Error('invalid_target');
   return client;
 };
 

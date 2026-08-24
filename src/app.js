@@ -36,6 +36,7 @@ const bodyProgressRoutes = require('./routes/body-progress.routes');
 const oauthController = require('./controllers/oauth.controller');
 app.get('/.well-known/oauth-protected-resource', oauthController.protectedResource);
 app.get('/.well-known/oauth-protected-resource/mcp', oauthController.protectedResource);
+app.get('/.well-known/oauth-protected-resource/mcp-v2', oauthController.protectedResource);
 app.get('/.well-known/oauth-authorization-server', oauthController.authorizationServer);
 
 app.use(cors());
@@ -51,6 +52,7 @@ app.use('/v1/exercise-logs', exerciseLogRoutes);
 app.use('/v1/werewolf', werewolfRoutes);
 app.use('/v1/water-intakes', waterIntakeRoutes);
 app.use('/mcp', mcpRoutes);
+app.use('/mcp-v2', mcpRoutes);
 app.use('/oauth', oauthRoutes);
 app.use('/v1/body-progress', bodyProgressRoutes);
 app.use('/v1/uploads', express.static('uploads'));

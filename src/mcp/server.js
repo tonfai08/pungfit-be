@@ -98,7 +98,7 @@ const errorResult = (message) => ({
 });
 
 const createPungfitMcpServer = (user) => {
-  const server = new McpServer({ name: 'pungfit', version: '1.0.0' });
+  const server = new McpServer({ name: 'pungfit', version: '1.1.0' });
 
   server.registerTool(
     'record_workout',
