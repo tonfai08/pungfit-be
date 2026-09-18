@@ -218,6 +218,32 @@ after(async () => {
     await fs.rm(uploads, { recursive: true, force: true });
 });
 
+test('public event listing exposes only currently published events without admin login', async () => {
+  const staff = client();
+  await ok(staff.call('/auth/login', 'POST', { email: 'super@example.test', password }));
+  const now = Date.now();
+  const dates = {
+    starts_at: new Date(now + 7 * 86400000).toISOString(),
+    ends_at: new Date(now + 7 * 86400000 + 3600000).toISOString(),
+    publish_at: new Date(now - 3600000).toISOString(),
+    booking_opens_at: new Date(now - 1800000).toISOString(),
+    booking_closes_at: new Date(now + 6 * 86400000).toISOString(),
+  };
+  const visible = await ok(staff.call('/events', 'POST', {
+    name: 'Public event', slug: `public-${now}`, status: 'scheduled', booking_mode: 'capacity',
+    capacity_limit: 20, max_attendees_per_booking: 4, payment_required: false, ...dates,
+  }), 201);
+  await ok(staff.call('/events', 'POST', { name: 'Private draft', slug: `draft-${now}` }), 201);
+  const result = await ok(client().call('/public/events'));
+  assert.ok(result.some((event) => event.id === visible._id && event.availability === 'open'));
+  assert.ok(!result.some((event) => event.name === 'Private draft'));
+  const publicEvent = result.find((event) => event.id === visible._id);
+  assert.equal(publicEvent.price_satang, 0);
+  assert.equal(publicEvent.available, 20);
+  assert.ok(!('content_json' in publicEvent));
+  assert.ok(!('created_by' in publicEvent));
+});
+
 test('admin lifecycle, layout copies, inventory concurrency, evidence, check-in and revocation', async (t) => {
   const superClient = client();
   const admin = client();

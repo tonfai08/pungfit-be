@@ -30,6 +30,7 @@ router.use((req, res, next) => {
 });
 router.use(requireOrigin);
 router.use('/auth', require('./bk-auth.routes'));
+router.use('/public', require('./bk-public.routes').router);
 router.use(authenticate);
 router.use('/events/:id', async (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'ID งานไม่ถูกต้อง' });

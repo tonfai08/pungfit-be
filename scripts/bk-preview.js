@@ -30,8 +30,12 @@ async function main() {
     slug: 'garden-sessions',
     short_description: 'ค่ำคืนดนตรีอะคูสติก ท่ามกลางสวนและบรรยากาศอบอุ่น',
     venue_name: 'The Garden Hall',
-    status: 'draft',
+    status: 'scheduled',
     starts_at: new Date('2026-12-12T18:00:00+07:00'),
+    ends_at: new Date('2026-12-12T22:00:00+07:00'),
+    publish_at: new Date('2026-09-01T08:00:00+07:00'),
+    booking_opens_at: new Date('2026-09-01T09:00:00+07:00'),
+    booking_closes_at: new Date('2026-12-12T17:00:00+07:00'),
     waitlist_enabled: true,
     created_by: user._id,
   });

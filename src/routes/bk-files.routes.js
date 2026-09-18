@@ -67,6 +67,6 @@ router.get('/files/:id', async (req, res) => {
     404,
   );
   res.type('image/webp').set('X-Content-Type-Options', 'nosniff');
-  res.sendFile(path.join(directory(), file.storage_key));
+  res.sendFile(file.storage_key, { root: directory() });
 });
 module.exports = router;

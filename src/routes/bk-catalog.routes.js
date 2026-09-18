@@ -75,11 +75,41 @@ function cleanContent(html) {
       'blockquote',
       'a',
       'img',
+      's', 'span', 'hr', 'pre', 'code', 'figure', 'figcaption',
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
     ],
-    allowedAttributes: { a: ['href', 'rel'], img: ['src', 'alt'] },
+    allowedAttributes: {
+      a: ['href', 'rel', 'target'], img: ['src', 'alt', 'title', 'width'],
+      p: ['style'], h2: ['style'], h3: ['style'], span: ['style'],
+      figure: ['class'], ol: ['start'],
+      th: ['colspan', 'rowspan', 'colwidth'], td: ['colspan', 'rowspan', 'colwidth'],
+    },
+    allowedClasses: { figure: ['bk-article-image'] },
+    allowedStyles: {
+      '*': {
+        'color': [/^#[a-f\d]{3,8}$/i, /^rgba?\([\d\s.,%]+\)$/i],
+        'background-color': [/^#[a-f\d]{3,8}$/i, /^rgba?\([\d\s.,%]+\)$/i],
+        'text-align': [/^(left|center|right|justify)$/],
+      },
+    },
     allowedSchemes: ['https', 'http', 'mailto'],
+    allowProtocolRelative: false,
     transformTags: {
-      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }),
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
+      img: (tagName, attribs) => {
+        const width = Number(attribs.width);
+        if (!Number.isInteger(width) || width < 50 || width > 2400) delete attribs.width;
+        return { tagName, attribs };
+      },
+      '*': (tagName, attribs) => {
+        if (tagName === 'td' || tagName === 'th') {
+          for (const name of ['colspan', 'rowspan']) {
+            if (!/^[1-9]\d{0,2}$/.test(attribs[name] || '')) delete attribs[name];
+          }
+          if (!/^\d{1,4}(,\d{1,4})*$/.test(attribs.colwidth || '')) delete attribs.colwidth;
+        }
+        return { tagName, attribs };
+      },
     },
     exclusiveFilter: (frame) =>
       frame.tag === 'img' &&
