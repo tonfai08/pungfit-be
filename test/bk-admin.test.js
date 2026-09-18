@@ -233,10 +233,18 @@ test('public event listing exposes only currently published events without admin
     name: 'Public event', slug: `public-${now}`, status: 'scheduled', booking_mode: 'capacity',
     capacity_limit: 20, max_attendees_per_booking: 4, payment_required: false, ...dates,
   }), 201);
-  await ok(staff.call('/events', 'POST', { name: 'Private draft', slug: `draft-${now}` }), 201);
+  const publishedDraft = await ok(staff.call('/events', 'POST', {
+    name: 'Published draft', slug: `published-draft-${now}`,
+    starts_at: dates.starts_at, publish_at: dates.publish_at,
+  }), 201);
+  await ok(staff.call('/events', 'POST', {
+    name: 'Future draft', slug: `future-draft-${now}`,
+    starts_at: dates.starts_at, publish_at: new Date(now + 3600000).toISOString(),
+  }), 201);
   const result = await ok(client().call('/public/events'));
   assert.ok(result.some((event) => event.id === visible._id && event.availability === 'open'));
-  assert.ok(!result.some((event) => event.name === 'Private draft'));
+  assert.ok(result.some((event) => event.id === publishedDraft._id), 'publish_at alone makes the event public');
+  assert.ok(!result.some((event) => event.name === 'Future draft'));
   const publicEvent = result.find((event) => event.id === visible._id);
   assert.equal(publicEvent.price_satang, 0);
   assert.equal(publicEvent.available, 20);

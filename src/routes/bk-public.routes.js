@@ -10,7 +10,7 @@ const uploadDirectory = () => path.resolve(
 
 function visibleEventQuery(now = new Date()) {
   return {
-    status: 'scheduled',
+    status: { $nin: ['cancelled', 'archived'] },
     deleted_at: null,
     publish_at: { $lte: now },
     $or: [{ hide_at: null }, { hide_at: { $exists: false } }, { hide_at: { $gt: now } }],
@@ -18,7 +18,7 @@ function visibleEventQuery(now = new Date()) {
 }
 
 function bookingState(event, available, now) {
-  if (event.booking_opens_at > now) return 'upcoming';
+  if (!event.booking_opens_at || event.booking_opens_at > now) return 'upcoming';
   if (event.booking_closes_at <= now) return 'closed';
   if (available <= 0) return event.waitlist_enabled ? 'waitlist' : 'sold_out';
   return 'open';

@@ -39,6 +39,22 @@ async function main() {
     waitlist_enabled: true,
     created_by: user._id,
   });
+  await models.bk_events.create({
+    name: 'Morning Run · Riverside',
+    slug: 'morning-run-riverside',
+    short_description: 'วิ่งรับอากาศเช้าริมแม่น้ำสำหรับทุกระดับ',
+    venue_name: 'Riverside Park',
+    status: 'draft',
+    booking_mode: 'capacity',
+    capacity_limit: 30,
+    max_attendees_per_booking: 4,
+    payment_required: false,
+    starts_at: new Date('2026-11-15T06:00:00+07:00'),
+    publish_at: new Date('2026-09-10T08:00:00+07:00'),
+    booking_opens_at: new Date('2026-09-20T09:00:00+07:00'),
+    booking_closes_at: new Date('2026-11-14T20:00:00+07:00'),
+    created_by: user._id,
+  });
   const type = await models.bk_event_table_types.create({
     event_id: event._id,
     name: 'Garden Table',
