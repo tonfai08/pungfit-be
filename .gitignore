@@ -49,3 +49,6 @@ Thumbs.db
 # ───────────────
 uploads/
 public/uploads/
+# Booking payment evidence (served only through authenticated endpoints)
+bk_uploads/
+.cache/

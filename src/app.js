@@ -3,15 +3,17 @@ const morgan = require('morgan');
 const cors = require('cors');
 require('dotenv').config();
 const { connectDB } = require('./config/db');
+require('./models/bk');
 const app = express();
 
 app.set('trust proxy', 1);
+app.use('/v1/bk', require('./routes/bk.routes'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors());
 app.use(morgan('dev'));
 
-connectDB();
+connectDB().then(() => require('./services/bk-maintenance').startExpiryWorker());
 
 app.get('/', (req, res) => {
   res.json({ message: 'Fitness API running ✅' });

@@ -1,0 +1,76 @@
+// Runs against scripts/bk-preview.js + frontend dev server, never a live database.
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+
+(async () => {
+  const output = path.resolve('.cache/browser');
+  await fs.mkdir(output, { recursive: true });
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto('http://127.0.0.1:3100/booking-admin/login');
+    await page.getByLabel('อีเมล', { exact: true }).fill('preview@example.test');
+    await page.getByLabel('รหัสผ่าน', { exact: true }).fill('Preview-only-593!');
+    await page.screenshot({ path: path.join(output, 'login.png'), fullPage: true });
+    await page.getByRole('button', { name: 'เข้าสู่ระบบ →', exact: true }).click();
+    await page.waitForURL('**/booking-admin/events');
+    await page.getByRole('heading', { name: 'งานอีเวนต์', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Garden Sessions · Acoustic Night' }).waitFor();
+    await page.screenshot({ path: path.join(output, 'events.png'), fullPage: true });
+    await page.getByRole('link', { name: /Garden Sessions/ }).click();
+    await page.getByRole('tab', { name: 'ผังโต๊ะและราคา' }).click();
+    await page.getByRole('group', { name: 'ผังโต๊ะและเก้าอี้' }).waitFor();
+    await page.getByRole('button', { name: 'table: A01', exact: true }).click();
+    await page.getByLabel('ตำแหน่ง X', { exact: true }).fill('145');
+    await page.getByRole('button', { name: /^บันทึกผัง/ }).click();
+    await page.getByRole('status').filter({ hasText: 'บันทึกผังแล้ว' }).waitFor();
+    await page.screenshot({ path: path.join(output, 'layout.png'), fullPage: true });
+    await page.getByRole('tab', { name: 'การจอง / จัดโต๊ะ' }).click();
+    await page.getByRole('button', { name: '+ สร้างการจอง', exact: true }).click();
+    await page.getByLabel('ชื่อผู้ติดต่อ', { exact: true }).fill('ผู้ร่วมงานทดสอบ');
+    await page.getByLabel('เบอร์โทร', { exact: true }).fill('0812345678');
+    await page.getByLabel('จำนวนผู้ร่วมงานจริง').fill('4');
+    const tableTypeSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'Garden Table' }) });
+    const tableTypeId = await tableTypeSelect.locator('option').filter({ hasText: 'Garden Table' }).getAttribute('value');
+    await tableTypeSelect.selectOption(tableTypeId);
+    await page.getByRole('button', { name: 'สร้างการจองและกันโต๊ะ', exact: true }).click();
+    await page.getByText('ผู้ร่วมงานทดสอบ', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'จัดการ →', exact: true }).first().click();
+    await page.getByRole('heading', { name: 'จัดโต๊ะ', exact: true }).waitFor();
+    await page.getByText('B01', { exact: true }).click();
+    await page.getByRole('button', { name: 'บันทึกการจัดโต๊ะ', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'บันทึกแล้ว' }).waitFor();
+    await page.screenshot({ path: path.join(output, 'booking.png'), fullPage: true });
+    await page.getByRole('link', { name: 'ผู้ดูแลระบบ', exact: true }).click();
+    await page.getByRole('heading', { name: 'ผู้ดูแลระบบ', exact: true }).waitFor();
+    await page.getByRole('button', { name: '+ เพิ่ม Admin', exact: true }).click();
+    await page.getByLabel('ชื่อ', { exact: true }).fill('ผู้ดูแลทดสอบ');
+    await page.getByLabel('อีเมล', { exact: true }).fill(`staff-${Date.now()}@example.test`);
+    await page.getByLabel('รหัสผ่านเริ่มต้น').fill('Staff-preview-593!');
+    await page.getByRole('button', { name: 'สร้างบัญชี', exact: true }).click();
+    await page.getByText('ผู้ดูแลทดสอบ', { exact: true }).waitFor();
+    await page.screenshot({ path: path.join(output, 'admins.png'), fullPage: true });
+    await page.getByRole('link', { name: 'งานอีเวนต์', exact: true }).click();
+    await page.getByRole('link', { name: '+ สร้าง Event', exact: true }).click();
+    await page.getByLabel('ชื่องาน', { exact: true }).fill('งานที่สร้างผ่านหน้าจอทดสอบ');
+    await page.getByLabel('URL ของงาน (ตัวอักษรอังกฤษ ตัวเลข และ -)').fill(`browser-event-${Date.now()}`);
+    await page.getByRole('textbox', { name: 'รายละเอียดงานแบบบทความ' }).fill('รายละเอียดที่สร้างผ่าน Rich Text Editor');
+    await page.getByRole('button', { name: 'บันทึก Event', exact: true }).click();
+    await page.waitForURL(url => /\/events\/[a-f\d]{24}$/.test(url.pathname));
+    assert.equal(await page.getByLabel('ชื่องาน', { exact: true }).inputValue(), 'งานที่สร้างผ่านหน้าจอทดสอบ');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('link', { name: 'งานอีเวนต์', exact: true }).click();
+    await page.getByRole('heading', { name: 'งานอีเวนต์', exact: true }).waitFor();
+    await page.screenshot({ path: path.join(output, 'mobile.png'), fullPage: true });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Mobile viewport must not overflow horizontally');
+    assert.deepEqual(errors, []);
+    console.log('Browser checks passed: login, event create, rich text, layout save, booking, assignment, staff creation, mobile overflow. Screenshots:', output);
+  } catch (error) {
+    await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true });
+    throw error;
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
