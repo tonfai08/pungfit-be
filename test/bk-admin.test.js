@@ -14,6 +14,83 @@ let database, server, base, uploads;
 const password = 'Test-only-password-593!';
 const oid = () => new mongoose.Types.ObjectId().toString();
 
+test('event mode locks on creation and deletion hides events while retaining history', async () => {
+  const staff = client();
+  await ok(staff.call('/auth/login', 'POST', { email: 'super@example.test', password }));
+  const event = await ok(staff.call('/events', 'POST', { name: 'Delete me', slug: 'delete-test' }), 201);
+  const root = `/events/${event._id}`;
+  assert.equal((await staff.call(root, 'PATCH', { booking_mode: 'capacity', capacity_limit: 10, max_attendees_per_booking: 2 })).status, 409);
+  await ok(staff.call(root, 'PATCH', { name: 'Renamed', booking_mode: 'table' }));
+  assert.equal((await client().call(root, 'DELETE')).status, 401);
+  await ok(staff.call(root, 'DELETE'));
+  assert.ok((await models.bk_events.findById(event._id)).deleted_at);
+  assert.ok(await models.bk_audit_logs.exists({ action: 'delete_event', event_id: event._id }));
+  assert.ok(!(await ok(staff.call('/events'))).some((row) => row._id === event._id));
+  for (const path of ['', '/inventory', '/layout', '/bookings', '/waitlist'])
+    assert.equal((await staff.call(root + path)).status, 404);
+  assert.equal((await staff.call(root, 'PATCH', { name: 'Restore' })).status, 404);
+  assert.equal((await staff.call(root, 'DELETE')).status, 404);
+  const capacityEvent = await ok(staff.call('/events', 'POST', { name: 'History', slug: 'delete-history',
+    booking_mode: 'capacity', capacity_limit: 2, max_attendees_per_booking: 2, payment_required: false, waitlist_enabled: true }), 201);
+  const capacityRoot = `/events/${capacityEvent._id}`;
+  assert.equal((await staff.call(capacityRoot, 'PATCH', { booking_mode: 'table' })).status, 409);
+  const booking = await ok(staff.call(capacityRoot + '/bookings', 'POST', { request_key: crypto.randomUUID(),
+    contact_name: 'Guest', contact_phone: '0812345678', attendee_count: 2 }), 201);
+  assert.equal((await staff.call(capacityRoot, 'DELETE')).status, 409);
+  await ok(staff.call(capacityRoot + '/bookings/' + booking._id + '/cancel', 'POST', { reason: 'Cancel' }));
+  const waiting = await ok(staff.call(capacityRoot + '/waitlist', 'POST', { contact_name: 'Wait', contact_phone: '0812345678', attendee_count: 1 }), 201);
+  assert.equal((await staff.call(capacityRoot, 'DELETE')).status, 409);
+  await ok(staff.call(capacityRoot + '/waitlist/' + waiting._id, 'PATCH', { status: 'cancelled' }));
+  await ok(staff.call(capacityRoot, 'DELETE'));
+  assert.equal((await models.bk_bookings.findById(booking._id)).status, 'cancelled');
+});
+
+test('capacity mode serializes seat reservations, prices, expiry, waitlist and check-in without tables', async () => {
+  const staff = client();
+  await ok(staff.call('/auth/login', 'POST', { email: 'super@example.test', password }));
+  assert.equal((await staff.call('/events', 'POST', { name: 'Invalid', slug: 'invalid-capacity', booking_mode: 'capacity' })).status, 400);
+  const event = await ok(staff.call('/events', 'POST', {
+    name: 'Capacity', slug: 'capacity-test', booking_mode: 'capacity', capacity_limit: 5,
+    max_attendees_per_booking: 3, price_per_attendee_satang: 12500, waitlist_enabled: true,
+  }), 201);
+  const root = `/events/${event._id}`;
+  const contact = { contact_name: 'Seat guest', contact_phone: '0812345678', attendee_count: 3 };
+  assert.equal((await staff.call(root + '/bookings', 'POST', { ...contact, attendee_count: 4, request_key: crypto.randomUUID() })).status, 400);
+  assert.equal((await staff.call(root + '/bookings', 'POST', { ...contact, items: [{ table_type_id: oid(), quantity: 1 }], request_key: crypto.randomUUID() })).status, 400);
+  const requestKey = crypto.randomUUID();
+  const results = await Promise.all([
+    staff.call(root + '/bookings', 'POST', { ...contact, request_key: requestKey }),
+    staff.call(root + '/bookings', 'POST', { ...contact, request_key: crypto.randomUUID() }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [201, 409]);
+  const booking = results.find((r) => r.status === 201).data;
+  assert.equal(booking.total_amount_satang, 37500);
+  assert.equal(booking.unit_price_per_attendee_satang, 12500);
+  assert.equal(booking.status, 'pending_payment');
+  assert.equal((await ok(staff.call(root + '/bookings/' + booking._id))).items.length, 0);
+  const retry = await ok(staff.call(root + '/bookings', 'POST', { ...contact, request_key: booking.request_key }), 201);
+  assert.equal(retry._id, booking._id);
+  assert.equal((await ok(staff.call(root + '/inventory'))).capacity.available, 2);
+  assert.equal((await staff.call(root, 'PATCH', { capacity_limit: 2, max_attendees_per_booking: 2 })).status, 409);
+  assert.equal((await staff.call(root, 'PATCH', { booking_mode: 'table' })).status, 409);
+  const waiting = await ok(staff.call(root + '/waitlist', 'POST', contact), 201);
+  assert.equal(waiting.booking_mode, 'capacity');
+  assert.equal((await staff.call(root + '/waitlist/' + waiting._id + '/offer', 'POST', { request_key: crypto.randomUUID() })).status, 409);
+  await models.bk_bookings.updateOne({ _id: booking._id }, { hold_expires_at: new Date(0) });
+  assert.equal((await ok(staff.call(root + '/inventory'))).capacity.available, 5);
+  await ok(staff.call(root, 'PATCH', { payment_required: false }));
+  const offered = await ok(staff.call(root + '/waitlist/' + waiting._id + '/offer', 'POST', { request_key: crypto.randomUUID() }));
+  assert.equal(offered.status, 'confirmed');
+  assert.equal(offered.total_amount_satang, 0);
+  assert.equal((await ok(staff.call(root + '/bookings/' + booking._id))).booking.total_amount_satang, 37500);
+  assert.equal((await ok(staff.call(root + '/inventory'))).capacity.reserved, 3);
+  await ok(staff.call(root + '/bookings/' + offered._id + '/cancel', 'POST', { reason: 'Release quota' }));
+  assert.equal((await ok(staff.call(root + '/inventory'))).capacity.available, 5);
+  const admitted = await ok(staff.call(root + '/bookings', 'POST', { ...contact, request_key: crypto.randomUUID() }), 201);
+  await ok(staff.call(root + '/bookings/' + admitted._id + '/check-ins', 'POST', { guest_count: 2 }), 201);
+  assert.equal((await staff.call(root + '/bookings/' + admitted._id + '/check-ins', 'POST', { guest_count: 2 })).status, 400);
+});
+
 test('free events, registered customers, color persistence and atomic map booking', async () => {
   const staff = client();
   await ok(staff.call('/auth/login', 'POST', { email: 'super@example.test', password }));

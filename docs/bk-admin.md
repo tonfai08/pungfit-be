@@ -63,6 +63,33 @@ displayed role is never trusted. Customer contact records are not admin logins.
 
 ## Implemented workflows
 
+- `booking_mode` defaults to `table`; choose `capacity` for events without tables.
+  Capacity events require positive integer `capacity_limit` and
+  `max_attendees_per_booking` (no greater than the event limit), and accept
+  `price_per_attendee_satang` (default zero). Booking requests omit `items` or
+  send an empty array. `attendee_count` consumes the shared quota; table mode
+  still requires at least one table item.
+- Capacity inventory returns `capacity: { total, reserved, available,
+  max_attendees_per_booking, price_per_attendee_satang }` and empty table arrays.
+  Confirmed, payment-review and unexpired pending bookings consume quota.
+  Creation, waitlist offers and event limit changes use the same event transaction
+  lock, so concurrent requests cannot oversell. Cancellation/expiry releases quota.
+  Bookings snapshot their mode and per-attendee price; later changes do not reprice
+  past bookings. Event booking mode is locked immediately after creation, and the
+  limit cannot fall below current reservations. Existing table events need no migration.
+- Staff can delete an event from its editor after confirmation. Deletion sets
+  `deleted_at` and `deleted_by` and writes an audit record; it preserves the event,
+  bookings and related history in storage. Events with active bookings or pending
+  waitlist entries must be resolved first. Deleted events disappear from lists and
+  all event-scoped API access returns 404. Mutations check deletion inside the shared
+  event transaction, preventing a concurrent new booking from bypassing deletion.
+  The original slug stays reserved; the admin UI does not provide a restore action.
+- Capacity waitlists store mode and attendee count without a table type/quantity.
+  Offering a slot uses the normal booking transaction. The admin UI hides layout
+  and table assignment for capacity events, accepts multiple seats per contact,
+  and supports existing customer selection, payments and group check-in.
+  `node test/bk-capacity-browser.cjs` verifies this against the disposable preview.
+
 - Events have a `payment_required` switch (existing events default to true).
   Free events create zero-price line snapshots and immediately confirmed bookings,
   even if their table types have configured prices. Changing this setting affects

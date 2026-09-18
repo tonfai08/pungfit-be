@@ -22,6 +22,7 @@ const {
   copyTemplate,
 } = require('../services/bk-layout');
 const router = express.Router();
+const { reservedAttendees } = require('../services/bk-booking');
 const optionalDate = date.nullable().optional();
 const eventInput = z
   .object({
@@ -47,6 +48,10 @@ const eventInput = z
       .optional(),
     waitlist_enabled: z.boolean().optional(),
     payment_required: z.boolean().optional(),
+    booking_mode: z.enum(['table', 'capacity']).optional(),
+    capacity_limit: integer(1).optional(),
+    max_attendees_per_booking: integer(1).optional(),
+    price_per_attendee_satang: integer().optional(),
     payment_due_minutes: integer(1).max(10080).optional(),
     payment_instructions: text(10000).optional(),
     booking_terms: text(20000).optional(),
@@ -92,7 +97,7 @@ async function eventFields(input, session) {
   return fields;
 }
 router.get('/events', async (req, res) =>
-  res.json(await models.bk_events.find().sort({ created_at: -1 }).limit(200)),
+  res.json(await models.bk_events.find({ deleted_at: null }).sort({ created_at: -1 }).limit(200)),
 );
 router.post('/events', async (req, res) => {
   const input = eventInput.parse(req.body);
@@ -118,6 +123,10 @@ router.patch('/events/:id', async (req, res) => {
       req.bkUser,
       'update_event',
       async (event, session) => {
+        requireValue(!input.booking_mode || input.booking_mode === (event.booking_mode || 'table'),
+          'เปลี่ยนรูปแบบการจองไม่ได้หลังสร้าง Event กรุณาสร้างงานใหม่', 409);
+        if ((input.booking_mode || event.booking_mode) === 'capacity' && input.capacity_limit !== undefined)
+          requireValue(input.capacity_limit >= await reservedAttendees(event._id, session), 'ลดโควตาต่ำกว่าจำนวนที่จองแล้วไม่ได้', 409);
         if (['cancelled', 'archived'].includes(input.status)) {
           requireValue(
             !(await models.bk_bookings
@@ -138,6 +147,19 @@ router.patch('/events/:id', async (req, res) => {
       },
     ),
   );
+});
+router.delete('/events/:id', async (req, res) => {
+  await withEvent(req.params.id, req.bkUser, 'delete_event', async (event, session) => {
+    const bookings = await models.bk_bookings.exists({ event_id: event._id,
+      status: { $in: ['pending_payment', 'payment_review', 'confirmed'] } }).session(session);
+    const waiting = await models.bk_waitlist_entries.exists({ event_id: event._id,
+      status: { $in: ['waiting', 'contacted', 'offered'] } }).session(session);
+    requireValue(!bookings && !waiting, 'กรุณาจัดการรายการจองและรายชื่อสำรองที่ยังมีผลก่อนลบ Event', 409);
+    event.deleted_at = new Date();
+    event.deleted_by = req.bkUser._id;
+    await event.save({ session });
+  });
+  res.json({ deleted: true });
 });
 router.get('/events/:id/table-types', async (req, res) => {
   objectId.parse(req.params.id);

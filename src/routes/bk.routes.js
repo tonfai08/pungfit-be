@@ -31,6 +31,12 @@ router.use((req, res, next) => {
 router.use(requireOrigin);
 router.use('/auth', require('./bk-auth.routes'));
 router.use(authenticate);
+router.use('/events/:id', async (req, res, next) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'ID งานไม่ถูกต้อง' });
+  const event = await models.bk_events.exists({ _id: req.params.id, deleted_at: null });
+  if (!event) return res.status(404).json({ error: 'ไม่พบงาน หรือ Event ถูกลบแล้ว' });
+  next();
+});
 router.use(require('./bk-catalog.routes').router);
 router.use(require('./bk-booking.routes'));
 router.use(require('./bk-files.routes'));

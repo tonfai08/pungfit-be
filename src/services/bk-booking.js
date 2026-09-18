@@ -27,8 +27,7 @@ const bookingInput = z
           })
           .strict(),
       )
-      .min(1)
-      .max(50),
+      .max(50).default([]),
   })
   .strict();
 async function reservedQuantity(eventId, typeId, session) {
@@ -49,6 +48,13 @@ async function reservedQuantity(eventId, typeId, session) {
     })
     .session(session || null);
   return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+async function reservedAttendees(eventId, session) {
+  const rows = await models.bk_bookings.find({ event_id: eventId, $or: [
+    { status: { $in: ['confirmed', 'payment_review'] } },
+    { status: 'pending_payment', hold_expires_at: { $gt: new Date() } },
+  ] }).select('attendee_count').session(session || null).lean();
+  return rows.reduce((sum, booking) => sum + booking.attendee_count, 0);
 }
 async function createBooking(event, input, actor, session) {
   const duplicate = await models.bk_bookings
@@ -77,6 +83,17 @@ async function createBooking(event, input, actor, session) {
   let total = 0;
   let capacity = 0;
   const lines = [];
+  const capacityMode = event.booking_mode === 'capacity';
+  const unitPrice = event.payment_required === false ? 0 : event.price_per_attendee_satang || 0;
+  if (capacityMode) {
+    requireValue(!input.items.length, 'งานแบบจำกัดผู้ร่วมงานไม่ใช้โต๊ะ');
+    requireValue(event.capacity_limit && event.max_attendees_per_booking, 'กรุณากำหนดโควตางานก่อนเปิดจอง');
+    requireValue(input.attendee_count <= event.max_attendees_per_booking, 'จำนวนที่นั่งเกินกำหนดต่อการจอง');
+    const available = event.capacity_limit - await reservedAttendees(event._id, session);
+    requireValue(input.attendee_count <= available, `ที่นั่งไม่พอ เหลือ ${available} ที่นั่ง`, 409);
+    capacity = input.attendee_count;
+    total = unitPrice * input.attendee_count;
+  } else requireValue(input.items.length > 0, 'กรุณาเลือกประเภทโต๊ะ');
   for (const item of input.items) {
     const type = await models.bk_event_table_types
       .findOne({
@@ -126,6 +143,8 @@ async function createBooking(event, input, actor, session) {
       {
         event_id: event._id,
         user_id: input.user_id,
+        booking_mode: capacityMode ? 'capacity' : 'table',
+        unit_price_per_attendee_satang: capacityMode ? unitPrice : undefined,
         request_key: input.request_key,
         contact_name: input.contact_name,
         contact_phone: input.contact_phone,
@@ -207,6 +226,7 @@ module.exports = {
   activeStatuses,
   bookingInput,
   reservedQuantity,
+  reservedAttendees,
   createBooking,
   assignTables,
 };

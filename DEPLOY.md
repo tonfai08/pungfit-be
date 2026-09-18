@@ -2,11 +2,11 @@
 
 เมื่อสั่ง deploy ให้ build/push จาก repo backend ไป registry นี้ ใช้ branch `dev` ตาม workflow โปรเจกต์
 
-รอบนี้ใช้เวอร์ชัน `1.0.11` ทั้ง backend และ frontend ตามคำสั่งให้เลขตรงกัน ก่อน deploy รอบถัดไปตรวจ release ล่าสุดและเพิ่มเวอร์ชันโดยไม่เขียนทับ tag เก่า
+รอบนี้ใช้เวอร์ชัน `1.0.12` ทั้ง backend และ frontend ตามคำสั่งให้เลขตรงกัน ก่อน deploy รอบถัดไปตรวจ release ล่าสุดและเพิ่มเวอร์ชันโดยไม่เขียนทับ tag เก่า
 
 ```powershell
 # รันใน backend และเปลี่ยน tag ตาม release ใหม่ในแต่ละรอบ
-docker build -t ara-registry.gipsic.net/pungfit-be:1.0.11 --push .
+docker build -t ara-registry.gipsic.net/pungfit-be:1.0.12 --push .
 if ($LASTEXITCODE -ne 0) { throw 'Backend build/push failed' }
 ```
 

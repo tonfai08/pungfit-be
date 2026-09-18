@@ -79,7 +79,7 @@ async function withEvent(eventId, actor, action, work) {
     // Every inventory mutation writes this common event document first. Concurrent
     // transactions conflict and retry before counting inventory, avoiding write skew.
     const event = await models.bk_events.findOneAndUpdate(
-      { _id: eventId },
+      { _id: eventId, deleted_at: null },
       { $inc: { inventory_revision: 1 } },
       { new: true, session },
     );

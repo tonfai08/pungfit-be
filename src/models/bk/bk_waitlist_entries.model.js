@@ -6,8 +6,9 @@ const bk_waitlist_entriesSchema = new mongoose.Schema({
   contact_name: bk_text(true, 150),
   contact_phone: bk_text(true, 32),
   contact_x_account: bk_text(false, 100),
-  table_type_id: bk_ref('bk_event_table_types', true),
-  quantity: bk_integer(1, { required: true }),
+  booking_mode: bk_enum(['table', 'capacity'], 'table'),
+  table_type_id: bk_ref('bk_event_table_types'),
+  quantity: bk_integer(1),
   attendee_count: bk_integer(1, { required: true }),
   status: bk_enum(['waiting', 'contacted', 'offered', 'converted', 'declined', 'expired', 'cancelled'], 'waiting'),
   note: bk_text(false, 2000),
@@ -21,6 +22,8 @@ bk_waitlist_entriesSchema.index({ offered_booking_id: 1 }, {
   unique: true, partialFilterExpression: { offered_booking_id: { $type: 'objectId' } },
 });
 bk_waitlist_entriesSchema.pre('validate', function () {
+  if (this.booking_mode === 'table' && (!this.table_type_id || !this.quantity))
+    this.invalidate('table_type_id', 'Table waitlist requires table type and quantity');
   if (['offered', 'converted'].includes(this.status) && !this.offered_booking_id) {
     this.invalidate('offered_booking_id', 'An offer must reference a booking that reserves inventory');
   }

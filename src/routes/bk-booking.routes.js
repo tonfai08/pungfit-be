@@ -15,6 +15,7 @@ const {
   activeStatuses,
   bookingInput,
   reservedQuantity,
+  reservedAttendees,
   createBooking,
   assignTables,
 } = require('../services/bk-booking');
@@ -22,6 +23,13 @@ const router = express.Router();
 router.get('/events/:id/inventory', async (req, res) => {
   objectId.parse(req.params.id);
   const event = await findOrFail(models.bk_events, { _id: req.params.id });
+  if (event.booking_mode === 'capacity') {
+    const reserved = await reservedAttendees(event._id);
+    return res.json({ booking_mode: 'capacity', types: [], tables: [], assignments: [],
+      capacity: { total: event.capacity_limit, reserved, available: Math.max(0, event.capacity_limit - reserved),
+        max_attendees_per_booking: event.max_attendees_per_booking,
+        price_per_attendee_satang: event.payment_required === false ? 0 : event.price_per_attendee_satang || 0 } });
+  }
   const types = await models.bk_event_table_types
     .find({ event_id: req.params.id })
     .lean();
@@ -383,8 +391,8 @@ const waitlistInput = z
     contact_name: text(150).min(1),
     contact_phone: text(32).min(5),
     contact_x_account: text(100).optional(),
-    table_type_id: objectId,
-    quantity: integer(1).max(1000),
+    table_type_id: objectId.optional(),
+    quantity: integer(1).max(1000).optional(),
     attendee_count: integer(1),
     note: text(2000).optional(),
   })
@@ -411,17 +419,23 @@ router.post('/events/:id/waitlist', async (req, res) => {
           !['archived', 'cancelled'].includes(event.status),
           'งานนี้ปิดแล้ว',
         );
-        const type = await findOrFail(
-          models.bk_event_table_types,
-          { _id: input.table_type_id, event_id: event._id },
-          session,
-        );
-        requireValue(
-          input.attendee_count <= type.capacity * input.quantity,
-          'จำนวนผู้ร่วมงานเกินความจุ',
-        );
+        if (event.booking_mode === 'capacity') {
+          requireValue(!input.table_type_id && input.quantity === undefined, 'งานนี้ไม่ใช้โต๊ะ');
+          requireValue(input.attendee_count <= event.max_attendees_per_booking, 'จำนวนที่นั่งเกินกำหนดต่อการจอง');
+        } else {
+          requireValue(input.table_type_id && input.quantity, 'กรุณาเลือกประเภทและจำนวนโต๊ะ');
+          const type = await findOrFail(
+            models.bk_event_table_types,
+            { _id: input.table_type_id, event_id: event._id },
+            session,
+          );
+          requireValue(
+            input.attendee_count <= type.capacity * input.quantity,
+            'จำนวนผู้ร่วมงานเกินความจุ',
+          );
+        }
         const [entry] = await models.bk_waitlist_entries.create(
-          [{ ...input, event_id: event._id }],
+          [{ ...input, event_id: event._id, booking_mode: event.booking_mode || 'table' }],
           { session },
         );
         return entry;
@@ -493,7 +507,7 @@ router.post('/events/:id/waitlist/:entryId/offer', async (req, res) => {
             contact_phone: entry.contact_phone,
             contact_x_account: entry.contact_x_account,
             attendee_count: entry.attendee_count,
-            items: [
+            items: event.booking_mode === 'capacity' ? [] : [
               {
                 table_type_id: String(entry.table_type_id),
                 quantity: entry.quantity,

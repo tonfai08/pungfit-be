@@ -2,6 +2,8 @@ const { mongoose, bk_options, bk_ref, bk_integer, bk_text, bk_enum, bk_model, bk
 
 const bk_eventsSchema = new mongoose.Schema({
   name: bk_text(true),
+  deleted_at: { type: Date, default: null },
+  deleted_by: bk_ref('bk_users'),
   slug: { ...bk_text(true, 120), lowercase: true, match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ },
   short_description: bk_text(false, 1000),
   content_json: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -29,6 +31,10 @@ const bk_eventsSchema = new mongoose.Schema({
   },
   status: bk_enum(['draft', 'scheduled', 'cancelled', 'archived'], 'draft'),
   table_selection_mode: bk_enum(['customer_select', 'admin_assign'], 'admin_assign'),
+  booking_mode: bk_enum(['table', 'capacity'], 'table'),
+  capacity_limit: bk_integer(1),
+  max_attendees_per_booking: bk_integer(1),
+  price_per_attendee_satang: bk_integer(0, { default: 0 }),
   waitlist_enabled: { type: Boolean, default: false },
   payment_required: { type: Boolean, default: true },
   payment_due_minutes: bk_integer(1, { required: true, default: 30 }),
@@ -45,6 +51,11 @@ bk_orderedDates(bk_eventsSchema, [
   ['publish_at', 'hide_at'], ['booking_closes_at', 'ends_at'],
 ]);
 bk_eventsSchema.pre('validate', function () {
+  if (this.booking_mode === 'capacity') {
+    if (!this.capacity_limit) this.invalidate('capacity_limit', 'กรุณากำหนดจำนวนผู้ร่วมงานสูงสุด');
+    if (!this.max_attendees_per_booking || this.max_attendees_per_booking > this.capacity_limit)
+      this.invalidate('max_attendees_per_booking', 'จำนวนต่อการจองต้องอยู่ระหว่าง 1 ถึงความจุงาน');
+  }
   if (this.status === 'scheduled') {
     for (const field of ['starts_at', 'ends_at', 'publish_at', 'booking_opens_at', 'booking_closes_at']) {
       if (!this[field]) this.invalidate(field, `${field} is required before scheduling`);

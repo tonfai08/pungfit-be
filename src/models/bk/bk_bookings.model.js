@@ -6,6 +6,8 @@ const bk_bookingsSchema = new mongoose.Schema({
   event_id: bk_ref('bk_events', true),
   request_key: { type: String, trim: true },
   user_id: bk_ref('bk_users'),
+  booking_mode: bk_enum(['table', 'capacity'], 'table'),
+  unit_price_per_attendee_satang: bk_integer(0),
   contact_name: bk_text(true, 150),
   contact_phone: bk_text(true, 32),
   contact_x_account: bk_text(false, 100),
