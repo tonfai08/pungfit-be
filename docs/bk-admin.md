@@ -63,6 +63,22 @@ displayed role is never trusted. Customer contact records are not admin logins.
 
 ## Implemented workflows
 
+- Events have a `payment_required` switch (existing events default to true).
+  Free events create zero-price line snapshots and immediately confirmed bookings,
+  even if their table types have configured prices. Changing this setting affects
+  future bookings only; existing prices, payments and statuses are preserved.
+- Layout object `properties_json.color` persists a validated six-digit hex color.
+  The editor offers eight pastel colors for tables, chairs, stages and other objects.
+  Both layout views overlay active booking status colors and show staff-only contact
+  tooltips. Expired holds are excluded from the displayed occupancy.
+- The booking canvas opens an Ant Design modal from a table or its attached chair.
+  Staff can create an atomic one-table booking for a registered customer or assign
+  the table to an existing booking with matching type and remaining allocation.
+  Chair clicks reserve the parent table; individual chair sales are not supported.
+  New registered-customer bookings store `user_id` and server-side contact snapshots.
+  Run `node test/bk-map-browser.cjs` against a fresh disposable preview to verify
+  the payment switch, pastel persistence, chair selection, modal, colors and tooltip.
+
 - Create/edit draft or scheduled events with cover/poster images, sanitized rich
   text, venue, Thai time inputs, publication/booking/hide windows and terms.
 - Drag/drop tables, chairs, stage, entrances and labels; edit coordinates, size,

@@ -13,6 +13,53 @@ const models = require('../src/models/bk');
 let database, server, base, uploads;
 const password = 'Test-only-password-593!';
 const oid = () => new mongoose.Types.ObjectId().toString();
+
+test('free events, registered customers, color persistence and atomic map booking', async () => {
+  const staff = client();
+  await ok(staff.call('/auth/login', 'POST', { email: 'super@example.test', password }));
+  const event = await ok(staff.call('/events', 'POST', {
+    name: 'Free map', slug: 'free-map', payment_required: false,
+  }), 201);
+  const root = `/events/${event._id}`;
+  const template = await ok(staff.call('/templates', 'POST', {
+    name: 'Colors', canvas_width: 1000, canvas_height: 700, version: 0,
+    objects: [{ _id: oid(), kind: 'table', label: 'F01', x: 100, y: 100, width: 80, height: 80,
+      properties_json: { shape: 'round', capacity: 4, color: '#E6DAF5' } }],
+  }));
+  const layout = await ok(staff.call(root + '/copy-template', 'POST', { template_id: template._id }));
+  assert.equal(layout.objects[0].properties_json.color, '#E6DAF5');
+  assert.equal((await ok(staff.call(root + '/layout'))).objects[0].properties_json.color, '#E6DAF5');
+  let stock = await ok(staff.call(root + '/inventory'));
+  const type = stock.types[0], table = stock.tables[0];
+  await ok(staff.call(root + '/table-types/' + type._id, 'PATCH', { price_satang: 99000 }));
+  assert.equal((await ok(staff.call(root + '/inventory'))).types[0].price_satang, 0);
+  const customer = await ok(staff.call('/customers', 'POST', {
+    display_name: 'Registered', phone: '0812345678', x_account: '@registered',
+  }), 201);
+  const input = { user_id: customer._id, contact_name: 'Ignored snapshot', contact_phone: '00000',
+    attendee_count: 2, items: [{ table_type_id: type._id, quantity: 1, table_ids: [table._id] }] };
+  const requests = await Promise.all([1, 2].map(() => staff.call(root + '/bookings', 'POST', {
+    ...input, request_key: crypto.randomUUID(),
+  })));
+  assert.deepEqual(requests.map((r) => r.status).sort(), [201, 409]);
+  const booking = requests.find((r) => r.status === 201).data;
+  assert.equal(booking.total_amount_satang, 0);
+  assert.equal(booking.status, 'confirmed');
+  assert.equal(booking.hold_expires_at, null);
+  assert.equal(booking.user_id, customer._id);
+  assert.equal(booking.contact_name, 'Registered');
+  stock = await ok(staff.call(root + '/inventory'));
+  assert.equal(stock.assignments[0].booking.contact_x_account, '@registered');
+  assert.equal(stock.assignments[0].booking.user_id, customer._id);
+  await ok(staff.call(root, 'PATCH', { payment_required: true }));
+  assert.equal((await ok(staff.call(root + '/bookings/' + booking._id))).booking.total_amount_satang, 0);
+  await ok(staff.call(root + '/bookings/' + booking._id + '/cancel', 'POST', { reason: 'Test release' }));
+  const paid = await ok(staff.call(root + '/bookings', 'POST', { ...input, request_key: crypto.randomUUID() }), 201);
+  assert.equal(paid.total_amount_satang, 99000);
+  assert.equal(paid.status, 'pending_payment');
+  await models.bk_bookings.updateOne({ _id: paid._id }, { hold_expires_at: new Date(0) });
+  assert.equal((await ok(staff.call(root + '/inventory'))).assignments.length, 0);
+});
 function client() {
   let cookie = '',
     csrf = '';

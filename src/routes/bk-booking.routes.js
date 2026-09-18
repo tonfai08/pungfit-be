@@ -21,10 +21,12 @@ const {
 const router = express.Router();
 router.get('/events/:id/inventory', async (req, res) => {
   objectId.parse(req.params.id);
+  const event = await findOrFail(models.bk_events, { _id: req.params.id });
   const types = await models.bk_event_table_types
     .find({ event_id: req.params.id })
     .lean();
   for (const type of types) {
+    if (event.payment_required === false) type.price_satang = 0;
     type.total = await models.bk_event_tables.countDocuments({
       event_id: req.params.id,
       table_type_id: type._id,
@@ -43,7 +45,23 @@ router.get('/events/:id/inventory', async (req, res) => {
       released_at: null,
     })
     .lean();
-  res.json({ types, tables, assignments });
+  const items = await models.bk_booking_items.find({
+    _id: { $in: assignments.map((entry) => entry.booking_item_id) },
+  }).lean();
+  const bookings = await models.bk_bookings.find({
+    _id: { $in: items.map((item) => item.booking_id) },
+    event_id: req.params.id,
+    $or: [
+      { status: { $in: ['confirmed', 'payment_review'] } },
+      { status: 'pending_payment', hold_expires_at: { $gt: new Date() } },
+    ],
+  }).select('_id user_id booking_no contact_name contact_phone contact_x_account status').lean();
+  const live = assignments.flatMap((entry) => {
+    const item = items.find((item) => String(item._id) === String(entry.booking_item_id));
+    const booking = bookings.find((booking) => String(booking._id) === String(item?.booking_id));
+    return booking ? [{ ...entry, booking }] : [];
+  });
+  res.json({ types, tables, assignments: live });
 });
 router.get('/events/:id/bookings', async (req, res) => {
   objectId.parse(req.params.id);

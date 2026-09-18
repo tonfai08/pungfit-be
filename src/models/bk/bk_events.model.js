@@ -30,6 +30,7 @@ const bk_eventsSchema = new mongoose.Schema({
   status: bk_enum(['draft', 'scheduled', 'cancelled', 'archived'], 'draft'),
   table_selection_mode: bk_enum(['customer_select', 'admin_assign'], 'admin_assign'),
   waitlist_enabled: { type: Boolean, default: false },
+  payment_required: { type: Boolean, default: true },
   payment_due_minutes: bk_integer(1, { required: true, default: 30 }),
   payment_instructions: bk_text(false, 10000),
   booking_terms: bk_text(false, 20000),

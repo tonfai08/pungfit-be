@@ -24,6 +24,7 @@ const objectInput = z
       .object({
         shape: z.enum(['round', 'rect']).default('round'),
         capacity: integer(1).max(100).default(4),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       })
       .default({ shape: 'round', capacity: 4 }),
     table_type_id: objectId.nullable().optional(),

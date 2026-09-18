@@ -10,6 +10,7 @@ const activeStatuses = ['pending_payment', 'payment_review', 'confirmed'];
 const bookingInput = z
   .object({
     request_key: z.string().uuid(),
+    user_id: objectId.optional(),
     contact_name: text(150).min(1),
     contact_phone: text(32).min(5),
     contact_x_account: text(100).optional(),
@@ -54,6 +55,15 @@ async function createBooking(event, input, actor, session) {
     .findOne({ event_id: event._id, request_key: input.request_key })
     .session(session);
   if (duplicate) return duplicate;
+  if (input.user_id) {
+    const customer = await models.bk_users.findOne({
+      _id: input.user_id, role: 'customer', is_active: true, deleted_at: null,
+    }).session(session);
+    requireValue(customer, 'ไม่พบผู้ลงทะเบียนที่ใช้งานได้');
+    input = { ...input, contact_name: customer.display_name,
+      contact_phone: customer.phone || '', contact_x_account: customer.x_account || '' };
+    requireValue(input.contact_phone.length >= 5, 'กรุณาเพิ่มเบอร์โทรในรายชื่อผู้ติดต่อก่อนจอง');
+  }
   requireValue(
     !['cancelled', 'archived'].includes(event.status),
     'งานนี้ยกเลิกหรือเก็บถาวรแล้ว',
@@ -95,13 +105,14 @@ async function createBooking(event, input, actor, session) {
       `${type.name}: โต๊ะไม่พอ เหลือ ${available} โต๊ะ`,
       409,
     );
-    total += item.quantity * type.price_satang;
+    const price = event.payment_required === false ? 0 : type.price_satang;
+    total += item.quantity * price;
     capacity += item.quantity * type.capacity;
     lines.push({
       ...item,
-      unit_price_satang: type.price_satang,
+      unit_price_satang: price,
       capacity_per_table: type.capacity,
-      line_total_satang: item.quantity * type.price_satang,
+      line_total_satang: item.quantity * price,
     });
   }
   requireValue(Number.isSafeInteger(total), 'ยอดเงินเกินขอบเขตที่รองรับ');
@@ -114,6 +125,7 @@ async function createBooking(event, input, actor, session) {
     [
       {
         event_id: event._id,
+        user_id: input.user_id,
         request_key: input.request_key,
         contact_name: input.contact_name,
         contact_phone: input.contact_phone,

@@ -46,6 +46,7 @@ const eventInput = z
       .enum(['customer_select', 'admin_assign'])
       .optional(),
     waitlist_enabled: z.boolean().optional(),
+    payment_required: z.boolean().optional(),
     payment_due_minutes: integer(1).max(10080).optional(),
     payment_instructions: text(10000).optional(),
     booking_terms: text(20000).optional(),
